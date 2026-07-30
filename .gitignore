@@ -1,6 +1,7 @@
-venv/
+.venv/
 __pycache__/
-*.csv
+*_prices.csv
+*.egg-info/
 *.png
 *.jpg
 *.pdf
