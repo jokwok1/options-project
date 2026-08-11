@@ -1,0 +1,39 @@
+name: IV Screener
+
+on:
+  schedule:
+    - cron: "0 13 * * 1-5"  # weekdays, 1pm UTC (~9am ET)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  run-screener:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements-screener.txt
+
+      - name: Run screener
+        run: python screener.py
+
+      - name: Commit snapshot back
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add iv_history.csv
+          git commit -m "daily snapshot $(date -u +%Y-%m-%d)" || echo "No changes to commit"
+          git push
+
+      - name: Send Telegram alert
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python notify.py
