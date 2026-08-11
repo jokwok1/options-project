@@ -3,8 +3,13 @@ name = "options_project"
 version = "0.1.0"
 description = ""
 readme = "README.md"
-requires-python = ">=3.10"
-dependencies = []
+requires-python = ">=3.12"
+dependencies = [
+    "matplotlib>=3.8",
+    "pandas-ta>=0.3.14b0",
+    "trading-skills>=0.16.0",
+    "vollib>=0.5.4",
+]
 
 [project.optional-dependencies]
 dev = [

@@ -5,11 +5,21 @@ import numpy as np
 
 import fetch_iv
 from save_snapshot import save_snapshot
-from yf_data import fetch, fetch_earnings_info
+from yf_data import compute_ema50_rsi, fetch, fetch_earnings_info
 
 FLAG_IV_HV_MIN = 1.5
-FLAG_EARNINGS_DAYS = 7
+FLAG_EARNINGS_DAYS = 5
+FLAG_RSI_MAX = 40
 MESSAGE_FILE = "daily_message.txt"
+
+
+def _num(x):
+    """Return x unless it's None or NaN."""
+    if x is None:
+        return None
+    if isinstance(x, float) and np.isnan(x):
+        return None
+    return x
 
 
 def load_watchlist(path="watchlist.txt"):
@@ -35,6 +45,8 @@ def analyze_ticker(ticker):
     vol = returns.rolling(30).std() * np.sqrt(252)
     hist_vol = vol.iloc[-1]
 
+    ema50, rsi = compute_ema50_rsi(close)
+
     price = None
     atm_iv = None
     expiry_used = None
@@ -50,6 +62,9 @@ def analyze_ticker(ticker):
     return {
         "ticker": ticker,
         "price": price,
+        "close": _num(close.iloc[-1]),
+        "ema50": _num(ema50.iloc[-1]),
+        "rsi": _num(rsi.iloc[-1]),
         "atm_iv": atm_iv,
         "hist_vol": hist_vol,
         "iv_hv_ratio": fetch_iv.compute_iv_hv_ratio(atm_iv, hist_vol),
@@ -67,6 +82,18 @@ def flag_reasons(entry):
     if ratio is not None and ratio >= FLAG_IV_HV_MIN:
         reasons.append(f"IV/HV {ratio:.2f}x")
 
+    close = entry.get("close")
+    ema50 = entry.get("ema50")
+    rsi = entry.get("rsi")
+    if (
+        close is not None
+        and ema50 is not None
+        and rsi is not None
+        and close < ema50
+        and rsi <= FLAG_RSI_MAX
+    ):
+        reasons.append(f"close<EMA50 (${ema50:.2f}), RSI {rsi:.1f}")
+
     days = entry["earnings"]["days_away"]
     if days and days.endswith("d") and not days.endswith(" ago"):
         try:
@@ -79,18 +106,9 @@ def flag_reasons(entry):
     return reasons
 
 
-def _num(x):
-    """Return x unless it's None or NaN."""
-    if x is None:
-        return None
-    if isinstance(x, float) and np.isnan(x):
-        return None
-    return x
-
-
 NAMES = ["Ticker", "Price", "Earnings", "Days", "ATM IV", "IV/HV",
-         "HistVol", "52WHigh", "EPS", "Rev", "Expiry"]
-WIDTHS = [6, 7, 10, 4, 7, 7, 8, 8, 8, 8, 10]
+         "HistVol", "52WHigh", "EMA", "RSI"]
+WIDTHS = [6, 7, 10, 4, 7, 7, 8, 8, 7, 5]
 
 
 def _fmt_table(rows):
@@ -133,10 +151,11 @@ def format_message(entries):
             if _num(entry["iv_hv_ratio"])
             else "\u2014"
         )
+        ema = f"${entry['ema50']:.2f}" if _num(entry.get("ema50")) else "\u2014"
+        rsi = f"{entry['rsi']:.1f}" if _num(entry.get("rsi")) else "\u2014"
         row = (
             ticker, price, str(e["earnings_date"]), e["days_away"],
-            atm_iv, ratio, hist_vol, e["high_52w"], e["eps_est"],
-            e["rev_est"], entry["expiry_used"] or "\u2014",
+            atm_iv, ratio, hist_vol, e["high_52w"], ema, rsi,
         )
         if flagged:
             row = (f"<b>{ticker:<{WIDTHS[0]}}</b>",) + row[1:]

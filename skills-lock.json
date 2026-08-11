@@ -13,6 +13,12 @@
       "skillPath": "plugins/python-development/skills/python-code-style/SKILL.md",
       "computedHash": "c375dffa8d94962e10193079af1527b149f43b68d60043830d89cbce1228cec7"
     },
+    "technical-analysis": {
+      "source": "staskh/trading_skills",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/technical-analysis/SKILL.md",
+      "computedHash": "57760f5fb894bb56b15d1b7d794a7639b7628d39a4d7f43b54d5f62505aa6784"
+    },
     "yahoo-finance": {
       "source": "gracefullight/stock-checker",
       "sourceType": "github",

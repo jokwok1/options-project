@@ -12,6 +12,30 @@ def test_flag_reasons_ivhv_above_threshold():
     assert screener.flag_reasons(_entry(1.6, "30d")) == ["IV/HV 1.60x"]
 
 
+def test_flag_reasons_close_below_ema50_and_rsi_low():
+    entry = _entry(1.1, "30d")
+    entry["close"] = 12.5
+    entry["ema50"] = 13.0
+    entry["rsi"] = 38.2
+    assert "close<EMA50 ($13.00), RSI 38.2" in screener.flag_reasons(entry)
+
+
+def test_flag_reasons_close_above_ema50_not_flagged():
+    entry = _entry(1.1, "30d")
+    entry["close"] = 13.5
+    entry["ema50"] = 13.0
+    entry["rsi"] = 38.2
+    assert screener.flag_reasons(entry) == []
+
+
+def test_flag_reasons_rsi_above_max_not_flagged():
+    entry = _entry(1.1, "30d")
+    entry["close"] = 12.5
+    entry["ema50"] = 13.0
+    entry["rsi"] = 45.0
+    assert screener.flag_reasons(entry) == []
+
+
 def test_flag_reasons_earnings_soon():
     assert "earnings in 3d" in screener.flag_reasons(_entry(1.1, "3d"))
 

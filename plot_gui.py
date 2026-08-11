@@ -10,7 +10,8 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 from fetch_iv import compute_iv_hv_ratio, find_atm_iv, get_option_chain
 from save_snapshot import save_snapshot
-from yf_data import fetch, fetch_earnings_info
+from screener import flag_reasons
+from yf_data import compute_ema50_rsi, fetch, fetch_earnings_info
 
 
 class TickerApp:
@@ -27,6 +28,7 @@ class TickerApp:
         self._sort_rev = True
 
         self._build_ui()
+        self._update_alert()
         self.root.after(100, self._load_watchlist)
 
     def _build_ui(self):
@@ -47,12 +49,18 @@ class TickerApp:
         self.status = tk.Label(top, text="", fg="gray")
         self.status.pack(side=tk.LEFT, padx=20)
 
+        self.alert = tk.Label(
+            self.root, text="", anchor=tk.W, padx=10, pady=5,
+            font=("Consolas", 10, "bold"),
+        )
+        self.alert.pack(side=tk.TOP, fill=tk.X, padx=10, pady=(0, 5))
+
         table_frame = tk.LabelFrame(self.root, text="Ticker Overview", padx=5, pady=5)
         table_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=(0, 5))
 
         cols = (
             "ticker", "price", "earnings_date", "days_away",
-            "atm_iv", "iv_hv", "hist_vol", "high_52w",
+            "atm_iv", "iv_hv", "hist_vol", "rsi", "high_52w",
             "eps_est", "rev_est", "expiry",
         )
         self.tree = ttk.Treeview(table_frame, columns=cols, show="headings", height=4)
@@ -64,6 +72,7 @@ class TickerApp:
         self.tree.heading("atm_iv", text="ATM IV")
         self.tree.heading("iv_hv", text="IV/HV")
         self.tree.heading("hist_vol", text="Hist Vol")
+        self.tree.heading("rsi", text="RSI")
         self.tree.heading("high_52w", text="52W High")
         self.tree.heading("eps_est", text="EPS Est")
         self.tree.heading("rev_est", text="Rev Est")
@@ -76,6 +85,7 @@ class TickerApp:
         self.tree.column("atm_iv", width=80, anchor=tk.CENTER)
         self.tree.column("iv_hv", width=70, anchor=tk.CENTER)
         self.tree.column("hist_vol", width=80, anchor=tk.CENTER)
+        self.tree.column("rsi", width=50, anchor=tk.CENTER)
         self.tree.column("high_52w", width=80, anchor=tk.CENTER)
         self.tree.column("eps_est", width=80, anchor=tk.CENTER)
         self.tree.column("rev_est", width=100, anchor=tk.CENTER)
@@ -132,6 +142,7 @@ class TickerApp:
         returns = np.log(close / close.shift(1))
         vol = returns.rolling(30).std() * np.sqrt(252)
         hist_vol = vol.iloc[-1]
+        ema50, rsi = compute_ema50_rsi(close)
 
         price = None
         atm_iv = None
@@ -152,6 +163,9 @@ class TickerApp:
             "data": data,
             "earnings": earnings,
             "price": price,
+            "close": close.iloc[-1],
+            "ema50": ema50.iloc[-1],
+            "rsi": rsi.iloc[-1],
             "atm_iv": atm_iv,
             "hist_vol": hist_vol,
             "iv_hv_ratio": iv_hv_ratio,
@@ -161,6 +175,7 @@ class TickerApp:
 
         self.ticker_listbox.insert(tk.END, ticker)
         self._update_earnings_table()
+        self._update_alert()
         self._select_ticker(ticker)
         self.entry.delete(0, tk.END)
         self.status.config(text=f"Added {ticker}")
@@ -175,6 +190,7 @@ class TickerApp:
         self.ticker_listbox.delete(sel[0])
         del self.ticker_data[ticker]
         self._update_earnings_table()
+        self._update_alert()
 
         if self.selected_ticker == ticker:
             self.selected_ticker = None
@@ -219,9 +235,13 @@ class TickerApp:
         data = entry["data"]
         earnings = entry["earnings"]
         close = data[("Close", ticker)]
+        ema50, rsi = compute_ema50_rsi(close)
 
         returns = np.log(close / close.shift(1))
         vol = returns.rolling(30).std() * np.sqrt(252)
+
+        current_rsi = rsi.iloc[-1]
+        rsi_str = f"{current_rsi:.1f}" if not np.isnan(current_rsi) else "N/A"
 
         current_vol = vol.iloc[-1]
         vol_str = f"{current_vol:.0%}" if not np.isnan(current_vol) else "N/A"
@@ -237,6 +257,8 @@ class TickerApp:
                 + amp + f"  Realized Vol (30d): {vol_str}",
             f"ATM IV: {entry['atm_iv']:.1%}  "
                 + amp + f"  IV/HV Ratio: {ratio_str}",
+            f"EMA50: ${ema50.iloc[-1]:.2f}  "
+                + amp + f"  RSI(14): {rsi_str}",
         ]
         self.info_label.config(text="\n".join(lines))
 
@@ -246,13 +268,16 @@ class TickerApp:
             gridspec_kw={"height_ratios": [3, 1]},
         )
 
-        ax1.plot(close.index, close.values, linewidth=1.2)
+        ax1.plot(close.index, close.values, linewidth=1.2, label="Close")
+        ax1.plot(ema50.index, ema50.values, linewidth=1.2,
+                 color="tab:orange", label="EMA50")
         ax1.set_ylabel("Price ($)")
         ax1.set_title(
-            f"{ticker} \u2014 Daily Close "
+            f"{ticker} \u2014 Daily Close + EMA50 "
             + amp + " 30-Day Realized Volatility"
         )
         ax1.grid(True, alpha=0.3)
+        ax1.legend(loc="upper left")
 
         ax2.plot(vol.index, vol.values, linewidth=1.2, color="tab:orange")
         ax2.set_ylabel("Realized Vol")
@@ -301,6 +326,8 @@ class TickerApp:
             hist_vol_str = f"{hv:.1%}" if not np.isnan(hv) else "N/A"
             ratio = e.get("iv_hv_ratio")
             ratio_str = f"{ratio:.2f}" if ratio is not None else "N/A"
+            rsi = e.get("rsi")
+            rsi_str = f"{rsi:.1f}" if rsi is not None and not np.isnan(rsi) else "N/A"
             expiry_str = e["expiry_used"] if e["expiry_used"] is not None else "N/A"
 
             self.tree.insert("", tk.END, values=(
@@ -311,11 +338,29 @@ class TickerApp:
                 atm_iv_str,
                 ratio_str,
                 hist_vol_str,
+                rsi_str,
                 earnings["high_52w"],
                 earnings["eps_est"],
                 earnings["rev_est"],
                 expiry_str,
             ))
+
+
+    def _update_alert(self):
+        flagged = []
+        for ticker, e in self.ticker_data.items():
+            for reason in flag_reasons(e):
+                flagged.append(f"{ticker} ({reason})")
+        if flagged:
+            self.alert.config(
+                text="\u26a0 ACTION ALERT \u26a0  " + " \u00b7 ".join(flagged),
+                bg="#ff4d4d", fg="white",
+            )
+        else:
+            self.alert.config(
+                text="\u2705 No action alerts",
+                bg="#4caf50", fg="white",
+            )
 
 
     def _sort_by_column(self, col):

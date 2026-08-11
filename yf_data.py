@@ -1,6 +1,6 @@
+from datetime import date, datetime, timedelta
+
 import yfinance as yf
-import pandas as pd
-from datetime import datetime, timedelta, date
 
 
 def fetch(ticker, days=365):
@@ -19,6 +19,19 @@ def fetch_and_save(ticker, days=365):
     filename = f"{ticker.lower()}_prices.csv"
     data.to_csv(filename)
     return filename
+
+
+def compute_ema50_rsi(close):
+    """Compute EMA50 and RSI(14) series for a close price Series."""
+    ema50 = close.ewm(span=50, adjust=False).mean()
+    delta = close.diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+    avg_gain = gain.ewm(alpha=1 / 14, min_periods=14).mean()
+    avg_loss = loss.ewm(alpha=1 / 14, min_periods=14).mean()
+    rs = avg_gain / avg_loss
+    rsi = 100 - 100 / (1 + rs)
+    return ema50, rsi
 
 
 def fetch_earnings_info(ticker):
