@@ -46,7 +46,7 @@ def test_format_message_has_table_and_banner():
         },
     }]
     msg = screener.format_message(entries)
-    assert "ACTION ALERT" in msg
-    assert "UUUU" in msg
+    assert "<b>\U0001f6a8 ACTION ALERT \U0001f6a8</b>" in msg
+    assert "<b>UUUU</b>" in msg
     assert "IV/HV 1.60x" in msg
-    assert msg.count("```") == 2
+    assert "<pre>" in msg and "</pre>" in msg

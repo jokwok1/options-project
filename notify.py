@@ -12,6 +12,7 @@ def send_telegram(token, chat_id, message):
     data = urllib.parse.urlencode({
         "chat_id": chat_id,
         "text": message,
+        "parse_mode": "HTML",
     }).encode()
     req = urllib.request.Request(url, data=data)
     with urllib.request.urlopen(req, timeout=30) as resp:

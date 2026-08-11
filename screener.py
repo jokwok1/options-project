@@ -2,7 +2,6 @@ import sys
 from datetime import date
 
 import numpy as np
-import pandas as pd
 
 import fetch_iv
 from save_snapshot import save_snapshot
@@ -89,11 +88,43 @@ def _num(x):
     return x
 
 
+NAMES = ["Ticker", "Price", "Earnings", "Days", "ATM IV", "IV/HV",
+         "HistVol", "52WHigh", "EPS", "Rev", "Expiry"]
+WIDTHS = [6, 7, 10, 4, 7, 7, 8, 8, 8, 8, 10]
+
+
+def _fmt_table(rows):
+    """Format rows (tuples of already-formatted strings) as a fixed-width table."""
+    header = " ".join(
+        f"{name:>{w}}" if i else f"{name:<{w}}"
+        for i, (name, w) in enumerate(zip(NAMES, WIDTHS))
+    )
+    lines = [header]
+    for r in rows:
+        cells = [
+            f"{r[i]:>{WIDTHS[i]}}" if i else f"{r[i]:<{WIDTHS[i]}}"
+            for i in range(len(NAMES))
+        ]
+        lines.append(" ".join(cells))
+    return "\n".join(lines)
+
+
 def format_message(entries):
-    """Build the alert: optional ACTION ALERT banner + the full table."""
+    """Build the alert (HTML for Telegram): banner + flagged line + full table."""
+    entries = sorted(
+        entries,
+        key=lambda e: (
+            not bool(flag_reasons(e)),
+            _num(e["iv_hv_ratio"]) is None,
+            -(_num(e["iv_hv_ratio"]) or 0),
+        ),
+    )
+
     rows = []
     for entry in entries:
         e = entry["earnings"]
+        flagged = bool(flag_reasons(entry))
+        ticker = entry["ticker"]
         price = f"${entry['price']:.2f}" if _num(entry["price"]) else "\u2014"
         atm_iv = f"{entry['atm_iv']:.1%}" if _num(entry["atm_iv"]) else "\u2014"
         hist_vol = f"{entry['hist_vol']:.1%}" if _num(entry["hist_vol"]) else "\u2014"
@@ -102,35 +133,30 @@ def format_message(entries):
             if _num(entry["iv_hv_ratio"])
             else "\u2014"
         )
-        rows.append({
-            "Ticker": entry["ticker"],
-            "Price": price,
-            "Earnings": str(e["earnings_date"]),
-            "Days": e["days_away"],
-            "ATM IV": atm_iv,
-            "IV/HV": ratio,
-            "HistVol": hist_vol,
-            "52WHigh": e["high_52w"],
-            "EPS": e["eps_est"],
-            "Rev": e["rev_est"],
-            "Expiry": entry["expiry_used"] or "\u2014",
-        })
+        row = (
+            ticker, price, str(e["earnings_date"]), e["days_away"],
+            atm_iv, ratio, hist_vol, e["high_52w"], e["eps_est"],
+            e["rev_est"], entry["expiry_used"] or "\u2014",
+        )
+        if flagged:
+            row = (f"<b>{ticker:<{WIDTHS[0]}}</b>",) + row[1:]
+        rows.append(row)
 
-    table = pd.DataFrame(rows).to_string(index=False)
+    table = _fmt_table(rows)
 
     flagged = [
-        f"{entry['ticker']} ({reason})"
+        f"<b>{entry['ticker']}</b> ({reason})"
         for entry in entries
         for reason in flag_reasons(entry)
     ]
-    lines = [f"\U0001f4c8 IV Screener \u2014 {date.today().isoformat()}"]
+    lines = [f"<b>\U0001f4c8 IV Screener \u2014 {date.today().isoformat()}</b>"]
     if flagged:
         lines = [
-            "\U0001f6a8 ACTION ALERT \U0001f6a8",
+            "<b>\U0001f6a8 ACTION ALERT \U0001f6a8</b>",
             "Flagged: " + " \u00b7 ".join(flagged),
             "",
         ] + lines
-    return "\n".join(lines + ["```", table, "```"])
+    return "\n".join(lines + ["<pre>", table, "</pre>"])
 
 
 def main():
