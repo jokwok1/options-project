@@ -2,7 +2,7 @@ name: IV Screener
 
 on:
   schedule:
-    - cron: "0 13 * * 1-5"  # weekdays, 1pm UTC (~9am ET)
+    - cron: "30 22 * * 0-4"  # Sun-Thu 22:30 UTC = 6:30am SGT Mon-Fri
   workflow_dispatch:
 
 permissions:
