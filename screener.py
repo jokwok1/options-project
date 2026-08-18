@@ -1,4 +1,5 @@
 import sys
+import html
 from datetime import date
 
 import numpy as np
@@ -164,7 +165,7 @@ def format_message(entries):
     table = _fmt_table(rows)
 
     flagged = [
-        f"<b>{entry['ticker']}</b> ({reason})"
+        f"<b>{entry['ticker']}</b> ({html.escape(reason)})"
         for entry in entries
         for reason in flag_reasons(entry)
     ]
