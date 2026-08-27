@@ -60,6 +60,9 @@ def analyze_ticker(ticker):
     except Exception as e:
         print(f"  warning: no options data for {ticker}: {e}", file=sys.stderr)
 
+    if price is None:
+        price = close.iloc[-1]
+
     return {
         "ticker": ticker,
         "price": price,

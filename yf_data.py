@@ -5,7 +5,7 @@ import yfinance as yf
 
 def fetch(ticker, days=365):
     """Fetch daily price history. Returns a DataFrame or empty DataFrame."""
-    end = datetime.today()
+    end = datetime.today() + timedelta(days=1)
     start = end - timedelta(days=days)
     data = yf.download(ticker, start=start.strftime("%Y-%m-%d"), end=end.strftime("%Y-%m-%d"))
     return data

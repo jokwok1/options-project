@@ -157,6 +157,9 @@ class TickerApp:
         except Exception:
             pass
 
+        if price is None:
+            price = close.iloc[-1]
+
         iv_hv_ratio = compute_iv_hv_ratio(atm_iv, hist_vol)
 
         self.ticker_data[ticker] = {
@@ -245,6 +248,8 @@ class TickerApp:
 
         current_vol = vol.iloc[-1]
         vol_str = f"{current_vol:.0%}" if not np.isnan(current_vol) else "N/A"
+        atm_iv = entry["atm_iv"]
+        atm_iv_str = f"{atm_iv:.1%}" if atm_iv is not None else "N/A"
         ratio = entry.get("iv_hv_ratio")
         ratio_str = f"{ratio:.2f}x" if ratio is not None else "N/A"
         amp = chr(38)
@@ -255,7 +260,7 @@ class TickerApp:
                 + amp + f"  Rev Est: {earnings['rev_est']}",
             f"52W High: {earnings['high_52w']}  "
                 + amp + f"  Realized Vol (30d): {vol_str}",
-            f"ATM IV: {entry['atm_iv']:.1%}  "
+            f"ATM IV: {atm_iv_str}  "
                 + amp + f"  IV/HV Ratio: {ratio_str}",
             f"EMA50: ${ema50.iloc[-1]:.2f}  "
                 + amp + f"  RSI(14): {rsi_str}",
