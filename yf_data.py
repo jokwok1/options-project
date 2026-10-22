@@ -1,5 +1,6 @@
 from datetime import date, datetime, timedelta
 
+import pandas as pd
 import yfinance as yf
 
 
@@ -8,7 +9,13 @@ def fetch(ticker, days=365):
     end = datetime.today() + timedelta(days=1)
     start = end - timedelta(days=days)
     data = yf.download(ticker, start=start.strftime("%Y-%m-%d"), end=end.strftime("%Y-%m-%d"))
-    return data
+    if not data.empty and isinstance(data.columns, pd.MultiIndex):
+        close = data["Close"].iloc[:, 0]
+    elif not data.empty:
+        close = data["Close"]
+    else:
+        return data
+    return data[close.notna()]
 
 
 def fetch_and_save(ticker, days=365):
